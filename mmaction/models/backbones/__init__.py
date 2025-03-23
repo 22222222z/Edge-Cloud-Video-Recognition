@@ -25,13 +25,33 @@ from .uniformerv2 import UniFormerV2
 from .vit_mae import VisionTransformer
 from .x3d import X3D
 
+from .mobilenet_v2_attnlast import MobileNetV2_attnlast
+from .mobilenet_v2_tsm_attnlast import MobileNetV2TSM_attnlast
+from .mobilenet_v2_edge_model import MobileNetV2EdgeModel
+from .mobilenet_v2_tsm_edge_model import MobileNetV2TSMEdgeModel
+
+from .uniformerv2_cloud_model import UniFormerV2_CloudModel
+from .uniformerv2_cloud_model_raw import UniFormerV2_CloudModel_Raw
+from .uniformerv2_cloud_model_raw_stage_2_feat import UniFormerV2_CloudModel_Raw_Stage_2_Feat
+from .uniformerv2_cloud_model_raw_stage_4_feat import UniFormerV2_CloudModel_Raw_Stage_4_Feat
+from .uniformerv2_cloud_model_raw_stage_3_feat import UniFormerV2_CloudModel_Raw_Stage_3_Feat
+from .uniformerv2_cloud_model_timm_patchembed import UniFormerV2_CloudModel_Timm_PatchEmbed
+
+from .uniformerv2_CENet import UniFormerV2CENet
+
 __all__ = [
     'AAGCN', 'C2D', 'C3D', 'MViT', 'MobileNetV2', 'MobileNetV2TSM',
     'OmniResNet', 'ResNet', 'ResNet2Plus1d', 'ResNet3d', 'ResNet3dCSN',
     'ResNet3dLayer', 'ResNet3dSlowFast', 'ResNet3dSlowOnly', 'ResNetAudio',
     'ResNetTIN', 'ResNetTSM', 'STGCN', 'SwinTransformer3D', 'TANet',
     'TimeSformer', 'UniFormer', 'UniFormerV2', 'VisionTransformer', 'X3D',
-    'RGBPoseConv3D'
+    'RGBPoseConv3D', 
+
+    'MobileNetV2EdgeModel', 'MobileNetV2TSMEdgeModel',
+    
+    'MobileNetV2_attnlast', 'MobileNetV2TSM_attnlast', 'UniFormerV2_CloudModel',
+    'UniFormerV2_CloudModel_Raw_Stage_4_Feat', 'UniFormerV2_CloudModel_Raw_Stage_3_Feat',
+    'UniFormerV2CENet'
 ]
 
 try:

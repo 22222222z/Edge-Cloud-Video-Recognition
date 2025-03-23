@@ -136,6 +136,9 @@ def main():
         runner = RUNNERS.build(cfg)
 
     # start training
+    print(runner.model)
+    # for name, param in runner.model.named_parameters():
+    #     print(name)
     runner.train()
 
 

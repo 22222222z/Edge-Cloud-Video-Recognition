@@ -174,9 +174,24 @@ def main():
     model = init_recognizer(cfg, args.checkpoint, device=args.device)
 
     inputs = build_inputs(model, args.video, use_frames=args.use_frames)
+    # print(inputs)
+    # print(inputs['inputs'][0].shape)
     gradcam = GradCAM(model, args.target_layer_name)
+    # print(gradcam)
     results = gradcam(inputs)
-
+    import torch
+    import torch.nn.functional as f
+    # path = /root/autodl-tmp/dataset/DAD/DAD/Tester1/normal_driving_6/front_IR
+    path = args.video
+    parse_path = path.split("/")
+    gt = parse_path[-2]
+    label = 1
+    if 'normal_driving' in gt:
+        label = 0
+    print(f"{parse_path[-3]} {parse_path[-2]} {parse_path[-1]}")
+    print(f.softmax(results[1]))
+    print(f"inference res: {torch.argmax(f.softmax(results[1])) == label}")
+    # print(args.out_filename)
     if args.out_filename is not None:
         try:
             from moviepy.editor import ImageSequenceClip
@@ -198,7 +213,7 @@ def main():
         if out_type == 'gif':
             video_clips.write_gif(args.out_filename)
         else:
-            video_clips.write_videofile(args.out_filename, remove_temp=True)
+            video_clips.write_videofile(args.out_filename, remove_temp=True, codec='libx264')
 
 
 if __name__ == '__main__':
