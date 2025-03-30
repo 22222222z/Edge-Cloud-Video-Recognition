@@ -65,6 +65,16 @@ class TSMOptimWrapperConstructor(DefaultOptimWrapperConstructor):
                 for param in list(m.parameters()):
                     if param.requires_grad:
                         bn.append(param)
+            elif isinstance(m, torch.nn.LayerNorm):
+                m_params = list(m.parameters())
+                normal_weight.append(m_params[0])
+                if len(m_params) == 2:
+                    normal_bias.append(m_params[1])
+            elif isinstance(m, torch.nn.Embedding):
+                m_params = list(m.parameters())
+                normal_weight.append(m_params[0])
+                if len(m_params) == 2:
+                    normal_bias.append(m_params[1])
             elif len(m._modules) == 0:
                 if len(list(m.parameters())) > 0:
                     raise ValueError(f'New atomic module type: {type(m)}. '

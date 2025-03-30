@@ -1,15 +1,38 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn as nn
+from typing import Dict, Optional, Tuple, Union
 
+from mmengine.model import merge_dict
+from mmengine.runner.checkpoint import load_checkpoint
 from mmaction.registry import MODELS
 from mmaction.utils import SampleList
+from mmaction.evaluation import top_k_accuracy
 from .base import BaseRecognizer
 
+from mmengine.logging import MMLogger
+logger = MMLogger.get_current_instance()
 
 @MODELS.register_module()
-class Recognizer2D(BaseRecognizer):
+class Recognizer2DDistill(BaseRecognizer):
     """2D recognizer model framework."""
+    def __init__(self, backbone, teacher_ckpt, teacher_model, distill_loss, cls_head = None, neck = None, train_cfg = None, test_cfg = None, data_preprocessor = None, topk: Union[int, Tuple[int]] = (1, 5)):
+    # def __init__(self, backbone, teacher_model, distill_loss, cls_head = None, neck = None, train_cfg = None, test_cfg = None, data_preprocessor = None, topk: Union[int, Tuple[int]] = (1, 5)):
+        super().__init__(backbone, cls_head, neck, train_cfg, test_cfg, data_preprocessor)
+
+        assert teacher_model is not None, "No teacher model for class Recognizer2DDistill"
+        assert distill_loss is not None, "No distillation loss"
+
+        # init teacher model
+        self.teacher_model = MODELS.build(teacher_model)
+        self.teacher_ckpt, self.teacher_loaded = teacher_ckpt, False
+
+        # for teacher metrics
+        self.num_classes = cls_head['num_classes'] if cls_head is not None else None
+        self.topk = topk
+
+        # distillation loss
+        self.distill_loss = MODELS.build(distill_loss)
 
     def extract_feat(self,
                      inputs: torch.Tensor,
@@ -36,12 +59,20 @@ class Recognizer2D(BaseRecognizer):
         # Record the kwargs required by `loss` and `predict`.
         loss_predict_kwargs = dict()
 
-        # data shape transformation
+        teacher_inputs = None
         if len(inputs.size()) == 6:
+            teacher_inputs = inputs.clone()
             inputs = inputs.squeeze(1).permute(0, 2, 1, 3, 4).contiguous()
+        else:
+            pass
 
         num_segs = inputs.shape[1]
         loss_predict_kwargs['num_segs'] = num_segs
+
+        # [N, num_crops * num_segs, C, H, W] -> [N, num_crops, C, T, H, W]
+        if teacher_inputs == None:
+            N, _, C, H, W = inputs.shape
+            teacher_inputs = inputs.clone().reshape(N, -1, C, num_segs, H, W)
 
         # [N, num_crops * num_segs, C, H, W] ->
         # [N * num_crops * num_segs, C, H, W]
@@ -148,6 +179,10 @@ class Recognizer2D(BaseRecognizer):
         # Return features extracted through backbone.
         if stage == 'backbone':
             return x, loss_predict_kwargs
+        
+        # save results for distillation loss
+        self.preds = self.cls_head(x).clone()
+        self.teacher_inputs = teacher_inputs
 
         loss_aux = dict()
         if self.with_neck:
@@ -179,3 +214,66 @@ class Recognizer2D(BaseRecognizer):
             # [N * num_crops, num_classes]
             x = self.cls_head(x, **loss_predict_kwargs)
             return x, loss_predict_kwargs
+        
+    def get_distill_metrics(self, preds, teacher_inputs, data_samples, **kwargs):
+        
+        # init loss for distilation
+        losses = dict()
+
+        # get teacher preds
+        with torch.no_grad():
+            self.teacher_model.eval()
+            cls_scores, _ = self.teacher_model.extract_feat(teacher_inputs, stage='head') # , test_mode=True)
+
+        # compute distillation loss
+        losses["loss_distill"] = self.distill_loss(preds, cls_scores)
+
+        # compute teacher metrics
+        labels = [x.gt_label for x in data_samples]
+        labels = torch.stack(labels).to(cls_scores.device)
+        labels = labels.squeeze()
+
+        if labels.shape == torch.Size([]):
+            labels = labels.unsqueeze(0)
+        elif labels.dim() == 1 and labels.size()[0] == self.num_classes \
+                and cls_scores.size()[0] == 1:
+            # Fix a bug when training with soft labels and batch size is 1.
+            # When using soft labels, `labels` and `cls_score` share the same
+            # shape.
+            labels = labels.unsqueeze(0)
+
+        if cls_scores.size() != labels.size():
+            top_k_acc = top_k_accuracy(cls_scores.detach().cpu().numpy(),
+                                       labels.detach().cpu().numpy(),
+                                       self.topk)
+            for k, a in zip(self.topk, top_k_acc):
+                losses[f'teacher_top{k}_acc'] = torch.tensor(
+                    a, device=cls_scores.device)
+
+        return losses
+        
+    def loss(self, inputs, data_samples, **kwargs):
+
+        # cross entropy loss
+        loss = super().loss(inputs, data_samples, **kwargs)
+
+        # load pretrained teacher ckpt
+        if not self.teacher_loaded:
+            logger.info(f'Loading pretrained teacher checkpoint form {self.teacher_ckpt}')
+            load_checkpoint(
+                self.teacher_model,
+                self.teacher_ckpt,
+                map_location="cpu",
+                strict=False,
+            )
+            self.teacher_loaded = True
+
+        # distillation loss
+        distill_loss = self.get_distill_metrics(self.preds, self.teacher_inputs, data_samples)
+        self.preds, self.teacher_inputs = None, None
+
+        # update loss dict
+        loss = merge_dict(loss, distill_loss)
+
+        return loss
+

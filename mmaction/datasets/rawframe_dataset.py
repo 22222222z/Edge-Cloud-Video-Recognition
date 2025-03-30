@@ -125,7 +125,8 @@ class RawframeDataset(BaseActionDataset):
             if self.with_offset:
                 # idx for offset and total_frames
                 video_info['offset'] = int(line_split[idx])
-                video_info['total_frames'] = int(line_split[idx + 1])
+                # video_info['total_frames'] = int(line_split[idx + 1])
+                video_info['total_frames'] = int(line_split[idx + 1]) - int(line_split[idx])
                 idx += 2
             else:
                 # idx for total_frames
