@@ -21,6 +21,9 @@ bash scripts/run_train.sh
 bash scripts/run_test.sh
 ```
 
+## Pretrained Weights
+[Google Drive link](https://drive.google.com/drive/folders/1V8weldZiyLqd0kY-WXH23umU4FEtwhyY?dmr=1&ec=wgc-drive-globalnav-goto)
+
 ## Configuration Files
 All configuration files are located in the `configs/` directory. These files define various settings and parameters for training, testing, and model setup. Here are some key configuration files:
 
